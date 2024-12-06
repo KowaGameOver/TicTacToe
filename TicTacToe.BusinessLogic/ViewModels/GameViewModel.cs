@@ -1,118 +1,174 @@
-﻿using System.Windows.Controls;
-using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.ComponentModel;
-using TicTacToe.BusinessLogic.Navigation.Interface;
+﻿using CommunityToolkit.Mvvm.Input;
+using System.Collections.ObjectModel;
+using TicTacToe.BusinessLogic.Models;
 using TicTacToe.BusinessLogic.Locator;
 using TicTacToe.BusinessLogic.StateHolder;
+using CommunityToolkit.Mvvm.ComponentModel;
+using TicTacToe.BusinessLogic.Navigation.Interface;
 
 namespace TicTacToe.BusinessLogic.ViewModels
 {
     public partial class GameViewModel : ObservableObject
     {
         private int moveCounter = 0;
-        private bool gameEnd = false;
         private string previousSymbol = "X";
         private readonly StateHolderService _holderService;
         private readonly INavigationService _navigationService;
-        private Dictionary<Tuple<int,int>, List<string>> buttonRowContent = new Dictionary<Tuple<int,int>, List<string>>();
-        public RelayCommand<Button> MakeMoveCommand { get; }
+        public RelayCommand<Cell> MakeMoveCommand { get; }
+        public RelayCommand CloseCommand {  get; }
+        public ObservableCollection<Cell> Board { get; } = new ObservableCollection<Cell>();
         public GameViewModel(INavigationService navigationService,
                              StateHolderService holderService)
         {
             _holderService = holderService;
             _navigationService = navigationService;
-            MakeMoveCommand = new RelayCommand<Button>(MakeMove);
-        }
-        public void MakeMove(Button button)
-        {
-            if (button.Content != null) 
-                return;
-            var symbol = previousSymbol switch
+
+            CloseCommand = new RelayCommand(() => _navigationService.CloseWindow(WindowLocator.GameWindow));
+            MakeMoveCommand = new RelayCommand<Cell>(MakeMove);
+            for (int row = 0; row < 3; row++)
             {
-                "X" => "O", 
-                "O" => "X", 
+                for (int col = 0; col < 3; col++)
+                    Board.Add(new Cell(row, col));
+            }
+        }
+        private async void MakeMove(Cell currentCell)
+        {
+            if (!string.IsNullOrEmpty(currentCell.Value))
+                return;
+
+            var currentSymbol = previousSymbol switch
+            {
+                "X" => "O",
+                "O" => "X"
             };
-            previousSymbol = symbol;
-            button.Content = new TextBlock { Text = symbol };
 
-            string cleanName = button.Name.TrimStart('_');
-            string[] parts = cleanName.Split('_');
+            previousSymbol = currentSymbol;
+            currentCell.Value = currentSymbol;
 
-            int row = int.Parse(parts[0]);
-            int column = int.Parse(parts[1]);
-
-            var key = Tuple.Create(row, column);
-
-            if (buttonRowContent.ContainsKey(key))
-                buttonRowContent[key].Add(symbol);
-            else
-                buttonRowContent[key] = new List<string> { symbol };
-
-            gameEnd = CheckGameResult(symbol);
-            if (gameEnd)
+            if (IsGameEnd(currentSymbol).ended)
             {
                 _navigationService.CloseWindow(WindowLocator.GameWindow);
                 _navigationService.OpenWindow(WindowLocator.GameEndWindow);
             }
+
+            if (_holderService.GameWithBot)
+            {
+                currentSymbol = previousSymbol switch
+                {
+                    "X" => "O",
+                    "O" => "X"
+                };
+
+                previousSymbol = currentSymbol;
+
+                await BotMoveAsync(currentSymbol);
+
+                if (IsGameEnd(currentSymbol).ended)
+                {
+                    _navigationService.CloseWindow(WindowLocator.GameWindow);
+                    _navigationService.OpenWindow(WindowLocator.GameEndWindow);
+                }
+            }
         }
-        private bool CheckGameResult(string symbol)
+        private (bool ended,int minMaxMetric) IsGameEnd(string symbol)
         {
-            for (int row = 0; row < 3; row++) 
-            {
-                if (buttonRowContent.Where(k => k.Key.Item1 == row).Count() < 3)
-                    continue;
-                var rowValues = buttonRowContent
-                                            .Where(k => k.Key.Item1 == row)
-                                            .Select(k => k.Value.First());
-                if (rowValues.All(x => x == rowValues.First()))
+            for (int row = 0; row < 3; row++)
+                if (Board.Where(c => c.Row == row).All(c => c.Value == symbol))
                 {
-                    _holderService.Winner = "The winner is: " + symbol;
-                    return true;
+                    _holderService.Winner = $"Winner is {symbol}";
+                    return (true, symbol == "X" ? 10 : -10);
+                }
+
+            for (int col = 0; col < 3; col++)
+                if (Board.Where(c => c.Column == col).All(c => c.Value == symbol))
+                {
+                    _holderService.Winner = $"Winner is {symbol}";
+                    return (true, symbol == "X" ? 10 : -10);
+                }
+
+            if (Board.Where(c => c.Row == c.Column).All(c => c.Value == symbol))
+            {
+                _holderService.Winner = $"Winner is {symbol}";
+                return (true, symbol == "X" ? 10 : -10);
+            }
+
+            if (Board.Where(c => c.Row + c.Column == 2).All(c => c.Value == symbol))
+            {
+                _holderService.Winner = $"Winner is {symbol}";
+                return (true, symbol == "X" ? 10 : -10);
+            }
+
+            if (Board.All(c => !string.IsNullOrEmpty(c.Value)))
+            {
+                _holderService.Winner = "Draw!";
+                return (true, 0); 
+            }
+
+            return (false, 0); 
+        }
+        private async Task BotMoveAsync(string currentSymbol)
+        {
+            await Task.Delay(200);
+
+            int bestScore = int.MinValue;
+            Cell bestMove = null;
+
+            foreach (var cell in Board)
+            {
+                if (string.IsNullOrEmpty(cell.Value))
+                {
+                    cell.Value = currentSymbol; 
+                    int score = Minimax(Board, 0, false, currentSymbol, currentSymbol);
+                    cell.Value = ""; 
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestMove = cell;
+                    }
                 }
             }
+            if (bestMove != null)
+                bestMove.Value = currentSymbol;
+        }
+        private int Minimax(ObservableCollection<Cell> board, int depth, bool isMaximizing, string botSymbol, string playerSymbol)
+        {
+            var (ended, score) = IsGameEnd(botSymbol);
+            if (ended)
+                return score - depth; 
 
-            for (int col = 0; col < 3; col++) 
+            if (isMaximizing) 
             {
-                if (buttonRowContent.Where(k => k.Key.Item2 == col).Count() < 3)
-                    continue;
-                var columnValues = buttonRowContent
-                                            .Where(k => k.Key.Item2 == col)
-                                            .Select(k => k.Value.First());
-                if (columnValues.All(x => x == columnValues.First()))
+                int bestScore = int.MinValue;
+
+                foreach (var cell in board)
                 {
-                    _holderService.Winner = "The winner is: " + symbol;
-                    return true;
+                    if (string.IsNullOrEmpty(cell.Value))
+                    {
+                        cell.Value = botSymbol;
+                        score = Minimax(board, depth + 1, false, botSymbol, playerSymbol);
+                        cell.Value = ""; 
+                        bestScore = Math.Max(bestScore, score);
+                    }
                 }
+                return bestScore;
             }
-
-            var mainDiagonalValues = buttonRowContent
-                                        .Where(k => k.Key.Item1 == k.Key.Item2)
-                                        .Select(k => k.Value.First());
-
-            if (mainDiagonalValues.Count() == 3 && mainDiagonalValues.All(x => x == mainDiagonalValues.First()))
+            else 
             {
-                _holderService.Winner = "The winner is: " + symbol;
-                return true;
+                int bestScore = int.MaxValue;
+
+                foreach (var cell in board)
+                {
+                    if (string.IsNullOrEmpty(cell.Value))
+                    {
+                        cell.Value = playerSymbol; 
+                        score = Minimax(board, depth + 1, true, botSymbol, playerSymbol);
+                        cell.Value = ""; 
+                        bestScore = Math.Min(bestScore, score);
+                    }
+                }
+                return bestScore;
             }
-
-            var antiDiagonalValues = buttonRowContent
-                                        .Where(k => k.Key.Item1 + k.Key.Item2 == 3 - 1) 
-                                        .Select(k => k.Value.First());
-
-            if (antiDiagonalValues.Count() == 3 && antiDiagonalValues.All(x => x == antiDiagonalValues.First()))
-            {
-                _holderService.Winner = "The winner is: " + symbol;
-                return true;
-            }
-
-            moveCounter++;
-            if (moveCounter == 9)
-            {
-                _holderService.Winner = "Draw!:)";
-                return true;
-            }
-
-            return false;
         }
     }
 }

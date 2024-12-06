@@ -3,14 +3,19 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:TicTacToe.Views"
+        xmlns:local="clr-namespace:TicTacToe.Views" 
+        xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
         mc:Ignorable="d"
-        WindowStartupLocation="Manual"
-        Top="100"
-        Left="400"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanMinimize"
         Title="TicTacToe" 
         Height="400"
         Width="500">
+    <i:Interaction.Triggers>
+        <i:EventTrigger EventName="Closing">
+            <i:InvokeCommandAction Command="{Binding CloseCommand}" />
+        </i:EventTrigger>
+    </i:Interaction.Triggers>
     <Grid
         Margin="10">
         <Grid.RowDefinitions>
@@ -27,7 +32,15 @@
              Width="200" 
              Height="35"
              VerticalAlignment="Top"
-             Content="Repeat">
-        </Button>
+             Command="{Binding RepeatGameCommand}"
+             Content="Repeat"/>
+        <Button 
+             Margin="0,50,0,0"
+             Grid.Row="2"
+             Width="200" 
+             Height="35"
+             VerticalAlignment="Top"
+             Command="{Binding MainMenuCommand}"
+             Content="Main menu"/>
     </Grid>
 </Window>

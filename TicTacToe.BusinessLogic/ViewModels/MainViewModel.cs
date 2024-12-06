@@ -1,7 +1,7 @@
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
 using TicTacToe.BusinessLogic.Locator;
+using TicTacToe.BusinessLogic.StateHolder;
+using CommunityToolkit.Mvvm.ComponentModel;
 using TicTacToe.BusinessLogic.Navigation.Interface;
 
 namespace TicTacToe.BusinessLogic.ViewModels
@@ -9,15 +9,23 @@ namespace TicTacToe.BusinessLogic.ViewModels
     public partial class MainViewModel : ObservableObject
     {
         private readonly INavigationService _navigationService;
+        private readonly StateHolderService _stateHolderService;
         public RelayCommand NewGameCommand { get; }
-        public MainViewModel(INavigationService navigationService)
+        public RelayCommand NewGameWithBotCommand { get; }
+        public MainViewModel(INavigationService navigationService,
+                             StateHolderService stateHolderService)
         {
             _navigationService = navigationService;
-            NewGameCommand = new RelayCommand(OnNewGameClick);
-        }
+            _stateHolderService = stateHolderService;
 
-        public void OnNewGameClick()
+            NewGameCommand = new RelayCommand(OnNewGameClick);
+            NewGameWithBotCommand = new RelayCommand(OnNewGameWithBotClick);
+        }
+        private void OnNewGameClick()
+            => _navigationService.OpenWindow(WindowLocator.GameWindow);
+        private void OnNewGameWithBotClick()
         {
+            _stateHolderService.GameWithBot = true;
             _navigationService.OpenWindow(WindowLocator.GameWindow);
         }
     }

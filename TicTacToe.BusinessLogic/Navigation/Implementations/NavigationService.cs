@@ -9,13 +9,6 @@ namespace TicTacToe.BusinessLogic.Navigation.Implementations
 {
     public class NavigationService : INavigationService
     {
-        //private class WindowState<T>
-        //    where T : Window
-        //{
-        //    public T Window { get; set; }
-        //    public Action CloseWindow { get; set; }
-        //    public bool IsOpened { get; set; }
-        //}
         private string? _currentWindowKey;
         private readonly IServiceProvider _serviceProvider;
         private readonly Dictionary<string, Window> _openedWindows;
@@ -41,7 +34,7 @@ namespace TicTacToe.BusinessLogic.Navigation.Implementations
             {
                 if (_openedWindows.ContainsKey(windowName))
                     return;
-                
+
                 Window window = null;
 
                 Application.Current.Dispatcher.Invoke(() =>
@@ -63,9 +56,17 @@ namespace TicTacToe.BusinessLogic.Navigation.Implementations
         {
             if (_openedWindows.ContainsKey(windowName))
             {
-                _openedWindows[windowName].Close();
-                var res = _openedWindows.Remove(windowName);
-                _currentWindowKey = null;
+                try
+                {
+                    _openedWindows[windowName].Close();
+                    var res = _openedWindows.Remove(windowName);
+                    _currentWindowKey = null;
+                }
+                catch (Exception ex)
+                {
+                    var res = _openedWindows.Remove(windowName);
+                    _currentWindowKey = null;
+                }
             }
         }
 
